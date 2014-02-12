@@ -19,7 +19,7 @@ glassTouchpadWidth = 7.55;
 
 // Make webcam holder
 rotate([45, 0, 0]) {
-translate([0, -33, 13]) {
+translate([0, -35, 13]) {
 difference() {
 cube([webcamSide + thicknessWC * 2, webcamSide + thicknessWC * 2, thicknessWC + webcamHeight]);
 translate([thicknessWC, thicknessWC, -thicknessWC]) cube([webcamSide, webcamSide, webcamHeight + thicknessWC]);
@@ -29,8 +29,8 @@ translate([thicknessWC + (webcamSide - webcamSideCut) / 2, thicknessWC + (webcam
 }
 }
 rotate([15, 0, 0]) {
-translate([0, -14, 7.20]) {
-translate([0, 0, 0]) cube([prismWidth, 15.73, 0 + thickness ]);
+translate([0, -15.7, 6.25]) {
+translate([0, 0, 0]) cube([prismWidth, 17, 2 * thickness ]);
 }}
 
 
