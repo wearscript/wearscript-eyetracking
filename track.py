@@ -17,7 +17,7 @@ import glob
 import requests
 
 # Default pupil parameters, use the debug mode to tune these and replace them for your purposes
-PARAMS = {'_delta':7, '_min_area': 2000, '_max_area': 20000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 140, 'pupil_ratio': 3.3}
+PARAMS = {'_delta':7, '_min_area': 2000, '_max_area': 20000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 140, 'pupil_ratio': 3.0}
 #PARAMS = {'_delta':2, '_min_area': 20000, '_max_area': 55000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 150, 'pupil_ratio': 2}
 CMDS = ['X', 'PERIOD']
 LAST_COMMAND_TIME_FIRST = 0
@@ -47,7 +47,7 @@ def handle_incoming_data(msg_data, kw, run):
             kw['calib'] = 'calib.js'
             run[0] = 'RELOAD'
 
-def debug_iter(box, frame, hull, timestamp):
+def debug_iter(box, frame, hull, timestamp, extra):
     if box is not None:
         cv2.circle(frame, (int(np.round(box[0][0])), int(np.round(box[0][1]))), 10, (0, 255, 0))
         cv2.ellipse(frame, box, (0, 255, 0))
@@ -119,6 +119,11 @@ def parse_calibration(calib, command_func, command_thresh):
     return plot_point
 
 def pupil_iter(pupil_intensity, pupil_ratio, debug=False, dump=None, load=None, plot=False, calib=None, func=None, command_func=None, **kw):
+    if dump is not None:
+        try:
+            os.makedirs(dump)
+        except OSError:
+            pass
     camera_id = kw.get('camera_id', 0)
     camera = cv2.VideoCapture(camera_id)
     camera.set(cv2.cv.CV_CAP_PROP_FRAME_WIDTH, 640)
@@ -192,9 +197,9 @@ def pupil_iter(pupil_intensity, pupil_ratio, debug=False, dump=None, load=None, 
             if debug: print('Gaze[%f,%f]' % (box[0][0], box[0][1]))
             if plot:
                 plot_point(box[0][0], box[0][1])
-            yield box, frame, hulls[0][2], timestamp
+            yield box, frame, hulls[0][2], timestamp, {'ratio': hulls[0][0], 'area': hulls[0][1].shape[0], 'radius': max(box[1][0], box[1][1])}
         else:
-            yield None, frame, None, timestamp
+            yield None, frame, None, timestamp, {}
         gevent.sleep(.2)
 
 def main():
@@ -202,16 +207,29 @@ def main():
         print('Got args[%r]' % (kw,))
         print('Demo callback, prints all inputs and sends nothing')
         run = [None]
+        calibdump = kw.get('calibdump')
+        def image_eyepos_cb(channel, time, image_data, eyepos):
+            print(channel)
+            print(time)
+            print('got data')
+            open(os.path.join(calibdump, '%f.jpg' % time), 'w').write(image_data)
+            open(os.path.join(calibdump, '%f.js' % time), 'w').write(json.dumps(eyepos))
+        if calibdump:
+            try:
+                os.makedirs(calibdump)
+            except OSError:
+                pass
+            ws.subscribe('imageeyepos', image_eyepos_cb)
         kw.update(PARAMS)
         while run[0] != 'QUIT':
-            for box, frame, hull, timestamp in pupil_iter(**kw):
+            for box, frame, hull, timestamp, extra in pupil_iter(**kw):
                 if kw.get('debug'):
                     run[0] = debug_iter(box, frame, hull, timestamp)
                 if run[0]:
                     break
                 if box is None:
                     continue
-                ws.publish('sensors:eyetracker', {'Pupil Eyetracker': -2}, {'Pupil Eyetracker': [[[box[0][1], box[0][0], max(box[1][0], box[1][1])], time.time(), int(time.time() * 1000000000)]]})
+                ws.publish('sensors:eyetracker', {'Pupil Eyetracker': -2}, {'Pupil Eyetracker': [[[box[0][1], box[0][0], extra['ratio'], extra['area'], extra['radius']], time.time(), int(time.time() * 1000000000)]]})
                 gevent.sleep(0)
 
             print(ws.receive())
@@ -220,6 +238,7 @@ def main():
     parser.add_argument('--load')
     parser.add_argument('--command_thresh', type=int, default=6)
     parser.add_argument('--calib')
+    parser.add_argument('--calibdump')
     parser.add_argument('--camera_id', type=int, default=0)
     parser.add_argument('--plot', action='store_true')
     parser.add_argument('--debug', action='store_true')
