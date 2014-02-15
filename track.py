@@ -208,12 +208,12 @@ def main():
         print('Demo callback, prints all inputs and sends nothing')
         run = [None]
         calibdump = kw.get('calibdump')
-        def image_eyepos_cb(channel, time, image_data, eyepos):
+        def image_eyepos_cb(channel, time, image_data, eyepos, num):
             print(channel)
             print(time)
             print('got data')
-            open(os.path.join(calibdump, '%f.jpg' % time), 'w').write(image_data)
-            open(os.path.join(calibdump, '%f.js' % time), 'w').write(json.dumps(eyepos))
+            open(os.path.join(calibdump, '%f-%d.jpg' % (time, num)), 'w').write(image_data)
+            open(os.path.join(calibdump, '%f-%d.js' % (time, num)), 'w').write(json.dumps(eyepos))
         if calibdump:
             try:
                 os.makedirs(calibdump)
