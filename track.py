@@ -212,7 +212,7 @@ def main():
             print(channel)
             print(time)
             print('got data')
-            open(os.path.join(calibdump, '%f-%d.jpg' % (time, num)), 'w').write(image_data)
+            open(os.path.join(calibdump, '%f-%d.jpg' % (time, num)), 'w').write(base64.b64decode(image_data))
             open(os.path.join(calibdump, '%f-%d.js' % (time, num)), 'w').write(json.dumps(eyepos))
         if calibdump:
             try:
