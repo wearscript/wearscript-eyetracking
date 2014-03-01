@@ -1,20 +1,17 @@
 import gevent.monkey
 gevent.monkey.patch_all()
-import cv2
 import wearscript
+import cv2
 import argparse
 import numpy as np
 import random
-import msgpack
-from websocket import create_connection
-from consolidate_pupil import consolidate
 import time
 import json
 import argparse
 import os
 import time
 import glob
-import requests
+
 
 # Default pupil parameters, use the debug mode to tune these and replace them for your purposes
 PARAMS = {'_delta':7, '_min_area': 2000, '_max_area': 20000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 140, 'pupil_ratio': 3.0}
@@ -30,22 +27,6 @@ MSER_KEYS = ['_delta', '_min_area', '_max_area',
              '_min_margin', '_edge_blur_size']
 
 COLORS = [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 0], [1, 0, 1], [0, 1, 1]]
-
-def handle_incoming_data(msg_data, kw, run):
-    if not msg_data:
-        return
-    msg = msgpack.loads(msg_data)
-    if kw.get('debug'):
-        print(msg)
-    # If we get the "end of calibration" message restart the run loop
-    # TODO(brandyn): Here we are hitching onto the Pupil sensor type, clean this up
-    dump = kw.get('dump')
-    if dump:
-        open(dump + '/%f.msgpack' % time.time(), 'w').write(msg_data)
-        if msg[0] == 'sensors' and any(int(x[0][0]) == -1 for x in msg[3].get('Pupil Point', [])):
-            consolidate(dump)
-            kw['calib'] = 'calib.js'
-            run[0] = 'RELOAD'
 
 def debug_iter(box, frame, hull, timestamp, extra):
     if box is not None:
@@ -200,10 +181,11 @@ def pupil_iter(pupil_intensity, pupil_ratio, debug=False, dump=None, load=None, 
             yield box, frame, hulls[0][2], timestamp, {'ratio': hulls[0][0], 'area': hulls[0][1].shape[0], 'radius': max(box[1][0], box[1][1])}
         else:
             yield None, frame, None, timestamp, {}
-        gevent.sleep(.2)
+        time.sleep(.2)
 
 def main():
     def callback(ws, **kw):
+        loop = gevent.spawn(ws.handler_loop)
         print('Got args[%r]' % (kw,))
         print('Demo callback, prints all inputs and sends nothing')
         run = [None]
@@ -230,9 +212,10 @@ def main():
                 if box is None:
                     continue
                 ws.publish('sensors:eyetracker', {'Pupil Eyetracker': -2}, {'Pupil Eyetracker': [[[box[0][1], box[0][0], extra['ratio'], extra['area'], extra['radius']], time.time(), int(time.time() * 1000000000)]]})
-                gevent.sleep(0)
+                time.sleep(0)
 
             print(ws.receive())
+        loop.kill()
     parser = argparse.ArgumentParser()
     parser.add_argument('--dump')
     parser.add_argument('--load')
