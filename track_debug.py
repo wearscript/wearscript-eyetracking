@@ -22,6 +22,7 @@ if __name__ == '__main__':
     parser.add_argument('--dump')
     parser.add_argument('--load')
     parser.add_argument('--calib')
+    parser.add_argument('--camera_id', type=int, default=0)
     parser.add_argument('--plot', action='store_true')
     args = parser.parse_args()
     vargs = vars(args)    

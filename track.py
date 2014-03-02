@@ -14,7 +14,7 @@ import glob
 
 
 # Default pupil parameters, use the debug mode to tune these and replace them for your purposes
-PARAMS = {'_delta':7, '_min_area': 2000, '_max_area': 20000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 140, 'pupil_ratio': 3.0}
+PARAMS = {'_delta':7, '_min_area': 2000, '_max_area': 20000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 80, 'pupil_ratio': 3.0}
 #PARAMS = {'_delta':2, '_min_area': 20000, '_max_area': 55000, '_max_variation': .25, '_min_diversity': .2, '_max_evolution': 200, '_area_threshold': 1.01, '_min_margin': .003, '_edge_blur_size': 5, 'pupil_intensity': 150, 'pupil_ratio': 2}
 CMDS = ['X', 'PERIOD']
 LAST_COMMAND_TIME_FIRST = 0
@@ -178,7 +178,10 @@ def pupil_iter(pupil_intensity, pupil_ratio, debug=False, dump=None, load=None, 
             if debug: print('Gaze[%f,%f]' % (box[0][0], box[0][1]))
             if plot:
                 plot_point(box[0][0], box[0][1])
-            yield box, frame, hulls[0][2], timestamp, {'ratio': hulls[0][0], 'area': hulls[0][1].shape[0], 'radius': max(box[1][0], box[1][1])}
+            stats = {'ratio': hulls[0][0], 'area': hulls[0][1].shape[0], 'radius': max(box[1][0], box[1][1]), 'x': box[0][0], 'y': box[0][1]}
+            if dump:
+                open(dump + '/%f.js' % (timestamp,), 'w').write(json.dumps(stats))
+            yield box, frame, hulls[0][2], timestamp, stats
         else:
             yield None, frame, None, timestamp, {}
         time.sleep(.2)
@@ -190,18 +193,15 @@ def main():
         print('Demo callback, prints all inputs and sends nothing')
         run = [None]
         calibdump = kw.get('calibdump')
-        def image_eyepos_cb(channel, time, image_data, eyepos, num):
-            print(channel)
-            print(time)
-            print('got data')
-            open(os.path.join(calibdump, '%f-%d.jpg' % (time, num)), 'w').write(base64.b64decode(image_data))
-            open(os.path.join(calibdump, '%f-%d.js' % (time, num)), 'w').write(json.dumps(eyepos))
         if calibdump:
             try:
                 os.makedirs(calibdump)
             except OSError:
                 pass
-            ws.subscribe('imageeyepos', image_eyepos_cb)
+            def image_callback(*data):
+                print(data[0])
+                open(os.path.join(calibdump, '%f.jpg' % data[1]), 'w').write(data[2])
+            ws.subscribe('image:glass', image_callback)
         kw.update(PARAMS)
         while run[0] != 'QUIT':
             for box, frame, hull, timestamp, extra in pupil_iter(**kw):
